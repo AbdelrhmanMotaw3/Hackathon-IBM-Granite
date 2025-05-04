@@ -1,129 +1,221 @@
-import os
+# brightearth_app_final.py
+"""
+Streamlit app for BrightEarth AI: interactive dashboard, productivity tools, and gamification.
+"""
 import streamlit as st
-from ibm_watsonx_ai.foundation_models import ModelInference
-from ibm_watsonx_ai.credentials import Credentials
-
-# --- Secure Setup ---
-API_KEY = os.getenv("WATSONX_API_KEY","ch1nbczDMcqQRSQY5EeWxvGL5R_DfCig43bnKxxfB58w")
-PROJECT_ID = os.getenv("WATSONX_PROJECT_ID","ae528503-ba43-464b-8eb2-add4c13852ce")
-REGION = os.getenv("WATSONX_REGION", "us-south")
-
-if not API_KEY or not PROJECT_ID:
-    raise EnvironmentError("Set WATSONX_API_KEY and WATSONX_PROJECT_ID environment variables.")
-
-# --- Initialize Models ---
-creds = Credentials(
-    url=f"https://{REGION}.ml.cloud.ibm.com",
-    api_key=API_KEY
-)
-text_model = ModelInference(
-    model_id="ibm/granite-3-8b-instruct",
-    credentials=creds,
-    project_id=PROJECT_ID
-)
-vision_model = ModelInference(
-    model_id="ibm/granite-vision-2b-vision-instruct",
-    credentials=creds,
-    project_id=PROJECT_ID
+import base64
+from io import BytesIO
+import json
+from pathlib import Path
+from PIL import Image
+from BrightEarth_CoPilot3 import (
+    get_daily_tip,
+    record_action,
+    get_badges,
+    summarize_text_tool,
+    generate_report_tool,
+    innovation_trend_tool,
+    verify_proof_tool,
+    verify_tip_application
 )
 
-# --- Inference Utility ---
-def run_inference(
-    model, prompt, max_new_tokens=80, temperature=0.7,
-    top_p=0.9, frequency_penalty=0.0, presence_penalty=0.0,
-    stop_sequences=None
-):
-    params = {
-        "max_new_tokens": max_new_tokens,
-        "temperature": temperature,
-        "top_p": top_p,
-        "frequency_penalty": frequency_penalty,
-        "presence_penalty": presence_penalty
-    }
-    if stop_sequences:
-        params["stop_sequences"] = stop_sequences
-    resp = model.generate(prompt=prompt, params=params)
-    return resp["results"][0]["generated_text"].strip()
-
-# --- Core Functions ---
-INSTRUCTION = (
-    "You are BrightEarth AI, a sustainability co-pilot.\n"
-    "If role, environment, or task is missing, ask for them.\n"
-    "Once all are provided, return ONE eco-action tip (<40 words), human-sounding, realistic, aligned to UN SDG 8.\n"
-    "Never mention user info. Never output more than one tip. Do not use titles or citations. Only reply with the tip."
+# --- App Configuration ---
+st.set_page_config(
+    page_title="ISYS AI Workplace",
+    page_icon="isys.png",
+    layout="wide"
 )
-def generate_tip(role, env, task):
-    if not (role and env and task):
-        return "Provide role, environment, and task."
-    prompt = f"{INSTRUCTION}\n\nRole={role}; Environment={env}; Task={task}\n"
-    return run_inference(text_model, prompt, stop_sequences=["<|endoftext|>"])
 
+# --- Custom CSS for Theme & Layout ---
+st.markdown(
+    """
+    <style>
+      body {
+        background-color: white !important;
+        color: #1A1A1A !important;
+      }
+      .main > div {
+        padding-top: 0 !important;
+      }
+      section[data-testid="stSidebar"] div[class*="css-"] {
+        background-color: white !important;
+        color: #1A1A1A !important;
+      }
+      section[data-testid="stForm"],
+      .stContainer {
+        background-color: white !important;
+      }
+      .css-18e3th9, .css-10trblm {
+        color: #1A1A1A !important;
+      }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-def summarize_text(text):
-    if not text.strip():
-        return "Please provide text to summarize."
-    prompt = f"Summarize the following text into two clear, professional sentences:\n\n{text}\n"
-    return run_inference(text_model, prompt, max_new_tokens=60, temperature=0.5)
-
-
-def generate_report(topic):
-    if not topic.strip():
-        return "Please provide a topic for the report."
-    prompt = f"Draft a concise professional report on '{topic}'. Include an introduction, key points, and a conclusion."
-    return run_inference(text_model, prompt, max_new_tokens=1000)
-
-
-def innovation_trend(role):
-    if not role.strip():
-        return "Provide a job role."
-    prompt = f"What is one cutting-edge innovation or technology trend that a {role} should know about? Provide one actionable insight."
-    return run_inference(text_model, prompt, max_new_tokens=60)
-
-
-def verify_proof(image_bytes):
-    prompt = "Verify this image as valid proof of an eco-action by describing what it shows."
-    resp = vision_model.generate(
-        prompt=prompt,
-        inputs={"image": image_bytes},
-        params={"max_new_tokens":100, "temperature":0.5}
+# --- Sidebar Logo & Header ---
+logo_path = Path("isys.png")
+if logo_path.exists():
+    logo_bytes = logo_path.read_bytes()
+    logo_b64 = base64.b64encode(logo_bytes).decode()
+    st.sidebar.markdown(
+        f"""
+        <div style="text-align: center;">
+            <img src="data:image/png;base64,{logo_b64}" width="200" style="margin-bottom: 10px;">
+            <h2 style="color: white; margin-bottom: 0;">ISYS AI</h2>
+            <p style="font-size: 0.85em; color: white;">Workplace Assistant</p>
+        </div>
+        <hr style="border-color:#e1e1e1;">
+        """,
+        unsafe_allow_html=True
     )
-    return resp["results"][0]["generated_text"].strip()
 
-# --- Streamlit UI ---
-st.set_page_config(page_title="BrightEarth Co-Pilot", layout="wide")
-st.title("🌍 BrightEarth AI Co-Pilot")
-st.sidebar.header("Features")
-mode = st.sidebar.selectbox("Choose", ["Eco-Action Tip","Summarize Text","Generate Report","Innovation Trend","Verify Proof"] )
+# --- Session State Initialization ---
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'role' not in st.session_state:
+    st.session_state.role = None
+if 'env' not in st.session_state:
+    st.session_state.env = None
 
-if mode == "Eco-Action Tip":
-    st.subheader("Daily Eco-Action Tip")
-    role = st.text_input("Job Role")
-    env = st.text_input("Work Environment")
-    task = st.text_input("Current Task")
-    if st.button("Generate Tip"):
-        st.success(generate_tip(role, env, task))
-elif mode == "Summarize Text":
-    st.subheader("Text Summarizer")
-    text = st.text_area("Enter text:")
-    if st.button("Summarize"):
-        st.write(summarize_text(text))
-elif mode == "Generate Report":
-    st.subheader("Professional Report Writer")
-    topic = st.text_input("Report Topic")
-    if st.button("Generate Report"):
-        st.write(generate_report(topic))
-elif mode == "Innovation Trend":
-    st.subheader("Innovation Trend Finder")
-    role = st.text_input("Job Role")
-    if st.button("Get Trend"):
-        st.write(innovation_trend(role))
-elif mode == "Verify Proof":
-    st.subheader("Eco-Action Proof Verifier")
-    file = st.file_uploader("Upload image", type=["png","jpg","jpeg"])
-    if file and st.button("Verify Proof"):
-        bytes_data = file.read()
-        st.image(bytes_data, use_column_width=True)
-        st.info(verify_proof(bytes_data))
+# --- Onboarding Flow ---
+if st.session_state.user_id is None:
+    st.write("Welcome to ISYS AI! Please enter your Employee ID to continue.")
+    emp_id = st.text_input("Employee ID", key="login_id")
+    if st.button("Continue", key="btn_login"):
+        if emp_id and emp_id.strip():
+            st.session_state.user_id = emp_id.strip()
+        else:
+            st.error("Employee ID cannot be empty.")
+    st.stop()
 
-st.sidebar.markdown("---")
-st.sidebar.write("Built with IBM Granite & Watsonx")
+if st.session_state.role is None:
+    st.write(f"Hello, **{st.session_state.user_id}**! Please enter your job role:")
+    custom_role = st.text_input("Enter your role:", key="custom_role_input")
+    if st.button("Confirm Role", key="btn_custom_role"):
+        if custom_role.strip():
+            st.session_state.role = custom_role.strip()
+        else:
+            st.error("Role cannot be empty.")
+    st.stop()
+
+
+# Ensure the user provides their environment (custom input)
+if st.session_state.env is None:
+    st.write("Please enter your work environment:")
+    
+    # Allow custom text input for environment instead of a selectbox
+    env = st.text_input("Enter your Environment:", key="custom_env")
+    
+    if st.button("Confirm Environment", key="btn_env"):
+        if env.strip():
+            st.session_state.env = env.strip()  # Save the custom environment input
+        else:
+            st.error("Environment cannot be empty.")
+    st.stop()
+
+# --- Sidebar: Badges ---
+badges = get_badges(st.session_state.user_id)
+st.sidebar.header("🏅 Your Badges")
+for badge in badges:
+    st.sidebar.markdown(f"<span class='badge'>{badge}</span>", unsafe_allow_html=True)
+
+# Tabs: Today, Tools, Profile
+tabs = st.tabs(["📋 Today","💡 Tools","📈 Profile"])
+
+# --- Today Tab ---
+with tabs[0]:
+    st.subheader("📅 Today's Tip & Actions")
+    tip = get_daily_tip(st.session_state.user_id, st.session_state.role, st.session_state.env)  # Pass environment here
+    st.markdown(f"<div class='tip-card'><strong>Daily Tip:</strong> {tip}</div>", unsafe_allow_html=True)
+    if st.button("✔️ Completed Tip", key="done_tip"):
+        record_action(st.session_state.user_id, "sustainability", proof="")
+        st.success("Action recorded!")
+
+    uploaded = st.file_uploader("📸 Upload proof image:", type=["png", "jpg", "jpeg"], key="proof")
+    if uploaded:
+        img_bytes = uploaded.read()
+        st.image(img_bytes, width=200)
+        if st.button("📤 Submit Proof", key="submit_proof"):
+            rec = verify_proof_tool(img_bytes)
+            match_eval = verify_tip_application(tip, rec.get("description", ""), model_id="granite-13b")
+            record_action(st.session_state.user_id, "safety", proof=json.dumps({**rec, **match_eval}))
+            st.success(f"Proof verified and recorded. Verdict: {match_eval['verdict']}")
+
+
+# --- Tools Tab ---
+with tabs[1]:
+    st.subheader("💡 Productivity Tools")
+    # In the Tools Tab section, when getting the eco-action tip, use text inputs for custom role and environment
+    with st.expander("🌱 Eco-Action Tip", expanded=True):
+    # Custom input for job role
+        jr = st.text_input("Enter your Job Role:", key="tip_custom_role", value=st.session_state.role or "")
+        
+        # Custom input for environment
+        we = st.text_input("Enter your Environment:", key="tip_custom_env")
+        
+        # Input for current task
+        ct = st.text_input("Current Task", key="tip_task")
+        
+        if st.button("Get Tip", key="btn_tip"):
+            # Use the custom inputs for job and environment to get a tip
+            tip2 = get_daily_tip(st.session_state.user_id, jr)  # Assuming this function can take the custom role
+            st.success(tip2, icon="🌿")
+            record_action(st.session_state.user_id, "sustainability", proof="")
+
+
+    with st.expander("✏️ Summarize Text"):
+        txt = st.text_area("Enter text to summarize...", key="sumtxt")
+        if st.button("Summarize", key="btn_sum"):
+            res = summarize_text_tool(txt)
+            record_action(st.session_state.user_id, "learning")
+            st.write(res)
+
+    with st.expander("📝 Generate Report"):
+        topic = st.text_input("Topic...", key="topic")
+        if st.button("Generate Report", key="btn_rpt"):
+            rpt = generate_report_tool(topic)
+            record_action(st.session_state.user_id, "learning")
+            st.download_button("Download Report", rpt, file_name="report.txt")
+
+    with st.expander("🔍 Innovation Trend"):
+        tr = st.text_input("Role for trend...", key="trrole")
+        if st.button("Get Trend", key="btn_trend"):
+            out = innovation_trend_tool(tr or st.session_state.role)
+            st.write(out)
+
+# --- Profile Tab ---
+with tabs[2]:
+    st.subheader("📈 Your Engagement Profile")
+    actions_path = Path("actions.json")
+    actions = json.loads(actions_path.read_text()) if actions_path.exists() else {}
+    user_acts = actions.get(st.session_state.user_id, [])
+
+    st.markdown(f"**Total Actions:** {len(user_acts)}")
+    for idx, act in enumerate(user_acts):
+        date_str = act.get("date", "N/A")
+        act_type = act.get("type", "action")
+        exp_label = f"{date_str} - {act_type.capitalize()}"
+        with st.expander(exp_label, expanded=(idx == len(user_acts)-1)):
+            st.write(f"**Type:** {act_type.capitalize()}")
+            st.write(f"**Date:** {date_str}")
+            proof_raw = act.get("proof", "")
+            if proof_raw:
+                st.write("**Proof Details:**")
+                try:
+                    proof_data = json.loads(proof_raw)
+                    st.json(proof_data)
+                except json.JSONDecodeError:
+                    st.write(proof_raw)
+            else:
+                st.info("No proof provided for this action.")
+
+    st.markdown("---")
+    st.markdown("**Download Full ESG Report**")
+    if st.button("Download Report", key="btn_esg"):
+        esg = json.dumps({"badges": badges, "actions": user_acts}, indent=2)
+        st.download_button("Download JSON", esg, file_name="esg_report.json")
+
+# --- Footer ---
+st.markdown("---")
+st.markdown("*Powered by IBM Granite AI & Watsonx*", unsafe_allow_html=True)
