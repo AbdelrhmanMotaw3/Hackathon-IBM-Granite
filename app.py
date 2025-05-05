@@ -138,7 +138,7 @@ with tabs[0]:
         st.image(img_bytes, width=200)
         if st.button("📤 Submit Proof", key="submit_proof"):
             rec = verify_proof_tool(img_bytes)
-            match_eval = verify_tip_application(tip, rec.get("description", ""), model_id="granite-13b")
+            match_eval = verify_tip_application(tip, rec.get("description", ""), model_id="ibm/granite-13b-instruct-v2")
             record_action(st.session_state.user_id, "safety", proof=json.dumps({**rec, **match_eval}))
             st.success(f"Proof verified and recorded. Verdict: {match_eval['verdict']}")
 
@@ -159,7 +159,7 @@ with tabs[1]:
         
         if st.button("Get Tip", key="btn_tip"):
             # Use the custom inputs for job and environment to get a tip
-            tip2 = get_daily_tip(st.session_state.user_id, jr)  # Assuming this function can take the custom role
+            tip2 = get_daily_tip(st.session_state.user_id, jr, we)  # Assuming this function can take the custom role
             st.success(tip2, icon="🌿")
             record_action(st.session_state.user_id, "sustainability", proof="")
 
