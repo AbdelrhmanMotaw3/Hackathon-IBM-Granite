@@ -60,10 +60,8 @@ def rate_limited(max_per_minute: int):
 # --- Inference Utility ---
 @rate_limited(30)
 def run_inference(prompt: str, model: ModelInference=text_model, **params) -> str:
-    params.setdefault("max_new_tokens", 80)
     resp = model.generate(prompt=prompt, params=params)
     return resp["results"][0]["generated_text"].strip()
-
 # --- Action Logging & Gamification ---
 ACTIONS_FILE = Path("actions.json")
 
@@ -88,11 +86,11 @@ def get_badges(user_id: str) -> List[str]:
     actions = _load_actions().get(user_id, [])
     types = [a["type"] for a in actions]
     badges = []
-    if types.count("sustainability") >= 5:
+    if types.count("sustainability") >= 2:
         badges.append("🌿 Green Champion")
-    if types.count("safety") >= 5:
+    if types.count("safety") >= 2:
         badges.append("🛡️ Safety Star")
-    if types.count("learning") >= 5:
+    if types.count("learning") >= 2:
         badges.append("📚 Learning Leader")
     return badges or ["👍 Participant"]
 
@@ -137,7 +135,7 @@ def get_daily_tip(user_id: str, job_role: str, environment: str) -> str:
                 f"working in a {environment}, aligned with UN SDG 8."
             ),
             temperature=0.7,
-            max_new_tokens=100
+            max_new_tokens=90
         )
         # If it's fresh for both user and role, accept it
         if tip not in existing_user_tips and tip not in existing_role_tips:
@@ -157,7 +155,7 @@ def get_daily_tip(user_id: str, job_role: str, environment: str) -> str:
 def summarize_text_tool(text: str) -> str:
     return run_inference(
         prompt=f"Summarize the following text into two clear, professional sentences:\n{text}\n",
-        max_new_tokens=150
+        max_new_tokens=200
     )
 
 @rate_limited(30)
@@ -171,7 +169,7 @@ def generate_report_tool(topic: str) -> str:
 def innovation_trend_tool(job_role: str) -> str:
     return run_inference(
         prompt=f"Identify one cutting-edge innovation for {job_role} with actionable insight.",
-        max_new_tokens=120
+        max_new_tokens=150
     )
 
 # --- Proof Verification (Structured JSON Output) ---
