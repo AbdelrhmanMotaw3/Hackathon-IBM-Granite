@@ -37,10 +37,9 @@ Powered by **IBM Watsonx & Granite Models**:
 ## 📁 Files Overview
 
 * `BrightEarth_CoPilot3.py` — Core logic for the AI co-pilot.
-* `app.py` — Flask or Streamlit app (UI interface).
-* `isys.png` — Image used in app visuals or testing.
+* `app.py` — Streamlit app (UI interface).
 * `Hackathon App Demo.mp4` — Video demo of the application.
-* `README.md` — This file.
+
 
 ---
 
