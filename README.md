@@ -1,6 +1,4 @@
-Great! Your GitHub repository looks clean and well-organized. Based on your current structure and filenames, here's an updated `README.md` tailored exactly to what’s visible in your repo:
 
----
 
 # 🌱 BrightEarth AI
 
