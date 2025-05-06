@@ -116,11 +116,5 @@ python app.py
 
 ---
 
-## 👥 Team
-
-Built by: Abdelrhman Motawea & Team
 Challenge: IBM Sustainability Hackathon 2025
 
----
-
-Let me know if you want to add badges, a tech stack diagram, or deploy this on HuggingFace or Streamlit Cloud.
